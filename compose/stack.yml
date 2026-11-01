@@ -1,0 +1,149 @@
+# The bundled apps: Sonarr, Radarr, Prowlarr, FlareSolverr, qBittorrent, Plex,
+# Bazarr. Added on top of docker-compose.yml when MEDIAHUB_STACK=full (default).
+# Skip it (MEDIAHUB_STACK=core) to use your own apps.
+#
+# Compose merges this file into docker-compose.yml: the extra `net` ports below
+# are appended to the dashboard port, and mediahub's depends_on gains the apps.
+# Ports are published on 127.0.0.1 only, except Plex (LAN).
+
+# Anchors do not cross files: these repeat docker-compose.yml. Keep them identical.
+x-media: &media "${MEDIA_ROOT:?set MEDIA_ROOT in stack.env}:/media"
+x-tz: &tz "${TZ:-Etc/UTC}"
+x-lsio-env: &lsio-env
+  PUID: "${PUID:-1000}"
+  PGID: "${PGID:-1000}"
+  TZ: *tz
+x-common: &common
+  restart: unless-stopped
+  network_mode: "service:net"
+  depends_on:
+    net:
+      condition: service_started
+
+services:
+  net:
+    ports:
+      - "127.0.0.1:8989:8989"    # sonarr
+      - "127.0.0.1:7878:7878"    # radarr
+      - "127.0.0.1:9696:9696"    # prowlarr
+      - "127.0.0.1:8090:8090"    # qbittorrent web ui (vpn.yml moves this to gluetun)
+      - "32400:32400"            # plex (LAN)
+      - "127.0.0.1:6767:6767"    # bazarr
+      - "127.0.0.1:8191:8191"    # flaresolverr
+
+  flaresolverr:
+    <<: *common
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
+    container_name: ${MEDIAHUB_PREFIX:-}flaresolverr
+    environment:
+      LOG_LEVEL: info
+      TZ: *tz
+      # One browser is enough for the few tagged indexers; default is 4.
+      MAX_CONCURRENT_SESSIONS: "1"
+    shm_size: 128m
+    mem_limit: 512m
+    cpus: 0.75
+
+  prowlarr:
+    <<: *common
+    image: lscr.io/linuxserver/prowlarr:2.5.2
+    container_name: ${MEDIAHUB_PREFIX:-}prowlarr
+    environment: *lsio-env
+    volumes:
+      - prowlarr-config:/config
+    mem_limit: 384m
+    cpus: 0.50
+    depends_on:
+      net: { condition: service_started }
+      flaresolverr: { condition: service_started }
+
+  sonarr:
+    <<: *common
+    image: lscr.io/linuxserver/sonarr:4.0.19
+    container_name: ${MEDIAHUB_PREFIX:-}sonarr
+    environment: *lsio-env
+    volumes:
+      - sonarr-config:/config
+      - *media
+    mem_limit: 384m
+    cpus: 0.50
+
+  radarr:
+    <<: *common
+    image: lscr.io/linuxserver/radarr:6.3.0
+    container_name: ${MEDIAHUB_PREFIX:-}radarr
+    environment: *lsio-env
+    volumes:
+      - radarr-config:/config
+      - *media
+    mem_limit: 384m
+    cpus: 0.50
+
+  qbittorrent:
+    <<: *common
+    image: lscr.io/linuxserver/qbittorrent:5.2.3
+    container_name: ${MEDIAHUB_PREFIX:-}qbittorrent
+    environment:
+      <<: *lsio-env
+      WEBUI_PORT: "8090"
+    volumes:
+      - qbittorrent-config:/config
+      - *media
+    mem_limit: 512m
+    cpus: 1.00
+
+  plex:
+    <<: *common
+    image: lscr.io/linuxserver/plex:1.43.4
+    container_name: ${MEDIAHUB_PREFIX:-}plex
+    environment:
+      <<: *lsio-env
+      VERSION: docker   # never self-update inside the container
+    volumes:
+      - plex-config:/config
+      - *media
+    # Idle library is ~21 titles. 1.5g covers a direct-play session; a
+    # transcode that needs more is a playback problem, not a silent OOM.
+    mem_limit: 1536m
+    cpus: 2.00
+
+  bazarr:
+    <<: *common
+    image: lscr.io/linuxserver/bazarr:v1.6.0-ls361
+    container_name: ${MEDIAHUB_PREFIX:-}bazarr
+    environment: *lsio-env
+    volumes:
+      - bazarr-config:/config
+      - *media
+    mem_limit: 384m
+    cpus: 0.50
+
+  # The setup service itself is in docker-compose.yml (so core mode has it too). Compose appends
+  # these volumes to its own: the bundled apps' config volumes, where `setup secrets` reads the
+  # API keys they generated and writes qBittorrent.conf.
+  setup:
+    volumes:
+      - sonarr-config:/cfg/sonarr:ro
+      - radarr-config:/cfg/radarr:ro
+      - prowlarr-config:/cfg/prowlarr:ro
+      - bazarr-config:/cfg/bazarr:ro
+      - plex-config:/cfg/plex:ro
+      - qbittorrent-config:/cfg/qbittorrent
+
+  # The dashboard waits for the apps it talks to.
+  mediahub:
+    depends_on:
+      net: { condition: service_started }
+      sonarr: { condition: service_started }
+      radarr: { condition: service_started }
+      prowlarr: { condition: service_started }
+      plex: { condition: service_started }
+      qbittorrent: { condition: service_started }
+
+volumes:
+  sonarr-config:
+  radarr-config:
+  prowlarr-config:
+  qbittorrent-config:
+  plex-config:
+  bazarr-config:

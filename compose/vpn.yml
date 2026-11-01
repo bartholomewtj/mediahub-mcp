@@ -1,0 +1,77 @@
+# Route qBittorrent through a VPN (gluetun). Added on top of docker-compose.yml
+# and stack.yml when MEDIAHUB_VPN=gluetun (needs MEDIAHUB_STACK=full).
+#
+# qBittorrent shares gluetun's network, so all its traffic leaves through the
+# VPN and is blocked if the VPN is down (gluetun's firewall). From the other
+# apps qBittorrent is at host `gluetun`, port 8090, not localhost: set that as
+# the download client host in Sonarr and Radarr. MediaHub is pointed at it
+# below. gluetun publishes 127.0.0.1:8090, so the web UI URL on the host is
+# unchanged.
+#
+# Provider, VPN type and region go in stack.env; credentials in
+# <MEDIAHUB_HOME>/vpn.env (template compose/vpn.env.example). Per-provider settings:
+# https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers
+#
+# Recreating gluetun cuts qbittorrent off from the network, so recreate both:
+# `mh up -d --force-recreate gluetun qbittorrent`.
+
+services:
+  # Same ports as `net` in docker-compose.yml + stack.yml, minus 8090, which
+  # gluetun publishes below (two containers cannot bind the same host port).
+  # Keep in sync; tests/test_compose.py checks it.
+  net:
+    ports: !override
+      - "${MEDIAHUB_PORT_BIND:-127.0.0.1:8000}:8000"
+      - "127.0.0.1:8989:8989"
+      - "127.0.0.1:7878:7878"
+      - "127.0.0.1:9696:9696"
+      - "32400:32400"
+      - "127.0.0.1:6767:6767"
+      - "127.0.0.1:8191:8191"
+
+  gluetun:
+    image: qmcgaw/gluetun:v3.41.1
+    container_name: ${MEDIAHUB_PREFIX:-}gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    # vpn.env (next to secrets.env, in MEDIAHUB_HOME) holds ONLY the VPN
+    # credentials (OPENVPN_USER, OPENVPN_PASSWORD, WIREGUARD_PRIVATE_KEY, ...).
+    # It is an env_file, not ${...} interpolation, so `config` never prints
+    # them, and gluetun never sees MediaHub's own secrets.
+    env_file:
+      - ${MEDIAHUB_HOME:?run compose through mh.ps1 or mh.sh}/vpn.env
+    environment:
+      TZ: "${TZ:-Etc/UTC}"
+      VPN_SERVICE_PROVIDER: "${VPN_SERVICE_PROVIDER:?set VPN_SERVICE_PROVIDER in stack.env}"
+      VPN_TYPE: "${VPN_TYPE:-wireguard}"
+      SERVER_COUNTRIES: "${VPN_SERVER_COUNTRIES:-}"
+      # Allow traffic from the compose network to qBittorrent's web UI.
+      FIREWALL_INPUT_PORTS: "8090"
+    ports:
+      - "127.0.0.1:8090:8090"    # qbittorrent web ui
+    # Same command as gluetun's image HEALTHCHECK, with a longer start period
+    # for the VPN handshake.
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  qbittorrent:
+    network_mode: !override "service:gluetun"
+    depends_on:
+      gluetun: { condition: service_healthy }
+
+  mediahub:
+    environment:
+      QBIT_URL: http://gluetun:8090
+
+  # `mh run --rm setup ...` (docker-compose.yml). It sets Sonarr/Radarr's download client host to
+  # gluetun from MEDIAHUB_VPN in stack.env.
+  setup:
+    environment:
+      QBIT_URL: http://gluetun:8090

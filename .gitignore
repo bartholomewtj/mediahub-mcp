@@ -1,0 +1,37 @@
+# Secrets — never commit these
+.env
+*.env
+!.env.example
+
+# ntfy topic name — on public ntfy.sh this is the only thing keeping your
+# notifications private, so treat it like a password
+.ntfy-topic
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Runtime logs (contain release names and paths)
+logs/
+
+# Download-watch state (progress clocks, swap counts, action log)
+data/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# Pickup snapshot; leftover NEXT-SESSION/ROADMAP must not be committed.
+/STATE.md
+/NEXT-SESSION.md
+/ROADMAP.md
+
+# Secrets and backups live in %USERPROFILE%\.mediahub, never here.
+compose/secrets.env
+compose/backups/
+compose/export-*/

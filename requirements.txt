@@ -1,0 +1,6 @@
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+httpx==0.28.1
+python-dotenv==1.0.1
+# MCP server (POST /mcp). 2.x renamed FastMCP to MCPServer.
+mcp==2.3.0

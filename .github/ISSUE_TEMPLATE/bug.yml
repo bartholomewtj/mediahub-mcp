@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in MediaHub does not work as described.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Never paste `secrets.env`, `vpn.env`, tokens, API keys, Telegram bot tokens, webhook keys or one-time codes.** Remove them from anything you paste. Report security problems privately instead (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: MediaHub version
+      description: The output of `mh run --rm setup version`, or the `VERSION` file.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you asked the agent, or the command you ran.
+  - type: input
+    id: env
+    attributes:
+      label: OS, Docker and Compose versions
+      placeholder: "Ubuntu 24.04, Docker 27.x, Compose 2.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: stack
+    attributes:
+      label: Stack mode
+      options: [full, core, full with VPN (gluetun), not sure]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or logs
+      description: "`mh logs mediahub`, `verify-stack` output or `setup check` output, with secrets removed."
+      render: text

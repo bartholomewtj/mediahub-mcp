@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediaHub</title>
+<style>
+  :root {
+    --bg: #14171c;
+    --panel: #1c2128;
+    --panel-2: #232a33;
+    --line: #2d3541;
+    --text: #e6eaf0;
+    --dim: #98a2b3;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --err: #f85149;
+    --accent: #58a6ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #fff; --panel-2: #f0f2f5; --line: #dde1e7;
+      --text: #1a1f26; --dim: #5c6673; --accent: #0969da;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1.5rem;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  header button { margin-left: auto; }
+  h1 { font-size: 1.4rem; margin: 0; letter-spacing: -0.01em; }
+  .muted { color: var(--dim); font-size: 0.85rem; }
+  h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em;
+       color: var(--dim); margin: 1.75rem 0 0.6rem; font-weight: 600; }
+
+  .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 0.6rem; }
+  .svc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+         padding: 0.7rem 0.85rem; display: block; text-decoration: none; color: inherit; }
+  .svc:hover { border-color: var(--accent); }
+  .svc-top { display: flex; align-items: center; gap: 0.5rem; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.up { background: var(--ok); }
+  .dot.down { background: var(--err); }
+  .svc-name { font-weight: 600; }
+  .svc-sub { color: var(--dim); font-size: 0.78rem; margin-top: 0.15rem;
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.6rem; }
+  .card.error { border-left: 3px solid var(--err); }
+  .card.warning { border-left: 3px solid var(--warn); }
+  .card-head { display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
+  .tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+         padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--panel-2); color: var(--dim); }
+  .tag.error { color: var(--err); }
+  .tag.warning { color: var(--warn); }
+  .card-title { font-weight: 600; }
+  .detail { color: var(--dim); font-size: 0.88rem; margin-top: 0.35rem; word-break: break-word; }
+
+  .btns { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.7rem; }
+  button {
+    font: inherit; font-size: 0.83rem; padding: 0.32rem 0.7rem; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text); cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .docs { font-size: 0.83rem; color: var(--accent); text-decoration: none; }
+  .docs:hover { text-decoration: underline; }
+
+  .diskline { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+              padding: 0.7rem 0.95rem; margin-top: 0.75rem; font-size: 1rem; }
+  .diskline b { font-variant-numeric: tabular-nums; }
+  .diskline.low { border-left: 3px solid var(--err); color: var(--err); }
+  .diskline.unknown { color: var(--dim); }
+  footer { margin-top: 2rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
+           color: var(--dim); font-size: 0.82rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { text-align: left; color: var(--dim); font-weight: 500; font-size: 0.75rem;
+       text-transform: uppercase; letter-spacing: 0.05em; padding: 0.3rem 0.6rem; }
+  td { padding: 0.45rem 0.6rem; border-top: 1px solid var(--line); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .trunc { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .bar { height: 5px; background: var(--panel-2); border-radius: 3px; overflow: hidden; min-width: 70px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .bar.hot > i { background: var(--err); }
+
+  /* Brief outline after a manual refresh, so you can see a panel was re-read
+     even when its numbers happen to be identical. */
+  @keyframes flash {
+    from { box-shadow: 0 0 0 2px var(--accent); }
+    to   { box-shadow: 0 0 0 2px transparent; }
+  }
+  .flash { animation: flash 1.2s ease-out; }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+
+  .empty { color: var(--dim); font-size: 0.88rem; padding: 0.6rem 0; }
+  @media (max-width: 600px) { body { padding: 1rem 0.75rem; } .trunc { max-width: 180px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>MediaHub</h1>
+    <span class="muted" id="updated">loading…</span>
+    <button id="reload" title="Re-reads every panel now instead of waiting for the timer. Changes nothing.">Reload now</button>
+  </header>
+
+  <div class="services" id="services"></div>
+
+  <div class="diskline unknown" id="diskline">Media disk: unknown</div>
+
+  <h2>Needs attention <span id="problem-count" class="muted"></span></h2>
+  <div id="problems"></div>
+
+  <h2>Downloading</h2>
+  <div id="queue"></div>
+
+  <h2>Watch</h2>
+  <div id="watch"></div>
+
+  <h2>Playing now</h2>
+  <div id="playing"></div>
+
+  <h2>Disks</h2>
+  <div id="disks"></div>
+
+  <footer>Read-only. To request, fix or clean up, ask your agent (MediaHub MCP).</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let LINKS = {};
+let LAST = null;
+
+// Everything from the services is untrusted text (release names, error strings),
+// so it goes through here before it touches innerHTML. Numbers too: a field that
+// should be a number is still only as trustworthy as the service that sent it.
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Only plain web links become hrefs; anything else (javascript:, data:) is dropped.
+const safeUrl = u => /^https?:\/\//i.test(String(u ?? "")) ? String(u) : "";
+
+function bar(percent, hot = false) {
+  const p = Math.max(0, Math.min(100, Number(percent) || 0));
+  return `<div class="bar${hot ? " hot" : ""}"><i style="width:${p}%"></i></div>`;
+}
+
+function renderServices(list) {
+  $("services").innerHTML = (list || []).map(s => {
+    const url = safeUrl(LINKS[s.name] || s.url);
+    const sub = s.up ? (s.version ? "v" + esc(s.version) : "running") : esc(s.error || "down");
+    return `<a class="svc"${url ? ` href="${esc(url)}"` : ""} target="_blank" rel="noopener">
+      <div class="svc-top"><span class="dot ${s.up ? "up" : "down"}"></span>
+        <span class="svc-name">${esc(s.name)}</span></div>
+      <div class="svc-sub">${sub}</div></a>`;
+  }).join("");
+}
+
+// Built with textContent rather than a template, so nothing from the server is
+// ever parsed as markup here.
+function renderDiskLine(free, guard) {
+  const el = $("diskline");
+  el.className = "diskline";
+  el.textContent = "";
+  const n = typeof free === "number" && isFinite(free) ? free : null;
+  const g = typeof guard === "number" && isFinite(guard) ? guard : null;
+  if (n === null) {
+    el.classList.add("unknown");
+    el.textContent = "Media disk: unknown";
+    return;
+  }
+  el.append("Media disk: ");
+  const b = document.createElement("b");
+  b.textContent = `${n} GB free`;
+  el.append(b);
+  if (g !== null && n < g) {
+    el.classList.add("low");
+    el.append(` — below the ${g} GB guard — new requests are refused; ask your agent for cleanup candidates`);
+  }
+}
+
+function renderProblems(problems) {
+  problems = problems || [];
+  $("problem-count").textContent = problems.length ? `(${problems.length})` : "";
+  if (!problems.length) {
+    $("problems").innerHTML = `<div class="empty">Nothing wrong. Everything is behaving.</div>`;
+    return;
+  }
+  // Text only: what is wrong and where to read about it. Fixing it goes
+  // through the agent, not this page.
+  $("problems").innerHTML = problems.map(p => {
+    const href = safeUrl(p.link);
+    const link = href
+      ? `<div class="btns"><a class="docs" href="${esc(href)}" target="_blank" rel="noopener">Docs</a></div>` : "";
+    return `<div class="card ${esc(p.severity)}">
+      <div class="card-head">
+        <span class="tag ${esc(p.severity)}">${esc(p.severity)}</span>
+        <span class="tag">${esc(p.service)}</span>
+        <span class="card-title">${esc(p.title)}</span>
+      </div>
+      <div class="detail">${esc(p.detail)}</div>
+      ${link}
+    </div>`;
+  }).join("");
+}
+
+function renderQueue(queue) {
+  queue = queue || [];
+  if (!queue.length) {
+    $("queue").innerHTML = `<div class="empty">Queue is empty.</div>`;
+    return;
+  }
+  const rows = queue.map(q => `<tr>
+    <td class="trunc" title="${esc(q.title)}">${esc(q.title)}</td>
+    <td>${esc(q.service)}</td>
+    <td style="min-width:90px">${bar(q.percent)}</td>
+    <td class="num">${esc(q.percent)}%</td>
+    <td class="num">${esc(q.size_gb ?? "–")} GB</td>
+    <td>${esc(q.eta || "–")}</td>
+  </tr>`).join("");
+  $("queue").innerHTML = `<div class="card"><table>
+    <thead><tr><th>Title</th><th>From</th><th>Progress</th><th class="num">%</th>
+    <th class="num">Size</th><th>ETA</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderPlaying(sessions) {
+  sessions = sessions || [];
+  if (!sessions.length) {
+    $("playing").innerHTML = `<div class="empty">Nobody is watching anything.</div>`;
+    return;
+  }
+  const rows = sessions.map(s => `<tr>
+    <td>${esc(s.title)}${s.subtitle ? ` <span class="muted">— ${esc(s.subtitle)}</span>` : ""}</td>
+    <td>${esc(s.user || "–")}</td>
+    <td>${esc(s.player || "–")}</td>
+    <td>${esc(s.state || "–")}</td>
+  </tr>`).join("");
+  $("playing").innerHTML = `<div class="card"><table>
+    <thead><tr><th>Title</th><th>User</th><th>Device</th><th>State</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function renderDisks(disks) {
+  // Sonarr and Radarr usually report the same drives — show each drive once.
+  const seen = new Set();
+  const unique = (disks || []).filter(d => !seen.has(d.path) && seen.add(d.path));
+  if (!unique.length) {
+    $("disks").innerHTML = `<div class="empty">No disk info.</div>`;
+    return;
+  }
+  const rows = unique.map(d => `<tr>
+    <td>${esc(d.path)} ${d.label ? `<span class="muted">${esc(d.label)}</span>` : ""}</td>
+    <td style="min-width:110px">${bar(d.used_percent, Number(d.used_percent) >= 90)}</td>
+    <td class="num">${esc(d.used_percent)}%</td>
+    <td class="num">${esc(d.free_gb)} GB free</td>
+    <td class="num">${esc(d.total_gb)} GB</td>
+  </tr>`).join("");
+  $("disks").innerHTML = `<div class="card"><table><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderWatch(w) {
+  if (!w) {
+    $("watch").innerHTML = `<div class="empty">Watch has not reported in yet.</div>`;
+    return;
+  }
+  if (!w.enabled) {
+    $("watch").innerHTML = `<div class="empty">Watch is off. Set WATCH_ENABLED=true in .env and restart.</div>`;
+    return;
+  }
+  const last = w.last_run
+    ? `Last pass ${new Date(w.last_run).toLocaleTimeString()}`
+    : "Starting…";
+  const c = w.counts || {};
+  const bits = ["progressing", "stalled", "waiting", "grace", "paused", "error"]
+    .filter(k => c[k])
+    .map(k => `${esc(c[k])} ${k}`);
+  const err = w.last_error
+    ? `<div class="detail">Last error: ${esc(w.last_error)}</div>` : "";
+  const actions = w.actions || [];
+  const rows = actions.length
+    ? `<table><thead><tr><th>When</th><th>Did</th><th>Title</th><th>Detail</th></tr></thead><tbody>${
+        actions.map(a => `<tr>
+          <td class="muted">${a.at ? esc(new Date(a.at).toLocaleTimeString()) : "–"}</td>
+          <td>${esc(a.action)}</td>
+          <td class="trunc" title="${esc(a.title)}">${esc(a.title)}</td>
+          <td>${esc(a.detail)}</td>
+        </tr>`).join("")
+      }</tbody></table>`
+    : `<div class="empty">No swaps or approvals yet. Stall wait is 40 minutes; new torrents get 30 minutes of grace.</div>`;
+  $("watch").innerHTML = `<div class="card">
+    <div class="muted">${esc(last)}${bits.length ? " · " + bits.join(" · ") : ""}</div>
+    ${err}${rows}
+  </div>`;
+}
+
+function flashPanels() {
+  document.querySelectorAll(".card, .svc, .diskline").forEach(el => {
+    el.classList.remove("flash");
+    void el.offsetWidth;  // forces the browser to restart the animation
+    el.classList.add("flash");
+  });
+}
+
+// Idle is 60s: a 15s poll woke every *arr and Plex for a page nobody was
+// watching. While something is downloading or playing, 20s is enough to
+// watch progress. Hidden tabs do not poll. A manual reload pushes the next
+// one a full interval out instead of landing on top of the render.
+const POLL_IDLE_MS = 60000;
+const POLL_ACTIVE_MS = 20000;
+let pollTimer = null;
+function pollDelay() {
+  if (document.hidden) return 120000;
+  const active = (LAST && LAST.now_playing && LAST.now_playing.length)
+    || (LAST && LAST.queue && LAST.queue.length)
+    || (LAST && LAST.transfer && LAST.transfer.dl_speed_mbps);
+  return active ? POLL_ACTIVE_MS : POLL_IDLE_MS;
+}
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(refresh, pollDelay());
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refresh();
+});
+
+async function refresh() {
+  try {
+    const data = await (await fetch("/api/status")).json();
+    LAST = data;
+    renderServices(data.services);
+    renderDiskLine(data.disk_free_gb, data.disk_guard_gb);
+    renderProblems(data.problems);
+    renderQueue(data.queue);
+    renderWatch(data.watch);
+    renderPlaying(data.now_playing);
+    renderDisks(data.disks);
+    const speed = data.transfer && data.transfer.dl_speed_mbps
+      ? ` · ↓ ${data.transfer.dl_speed_mbps} MB/s` : "";
+    $("updated").textContent = `updated ${new Date().toLocaleTimeString()}${speed}`;
+  } catch (e) {
+    $("updated").textContent = "can't reach MediaHub — is it still running?";
+  } finally {
+    schedulePoll();
+  }
+}
+
+// Client-side only: re-reads /api/status. Nothing on this page changes anything.
+$("reload").addEventListener("click", async () => {
+  const btn = $("reload");
+  btn.disabled = true;
+  btn.textContent = "Reloading…";
+  await refresh();
+  flashPanels();
+  btn.textContent = "Reload now";
+  btn.disabled = false;
+});
+
+(async function start() {
+  try {
+    const cfg = await (await fetch("/api/config")).json();
+    LINKS = cfg.links || {};
+  } catch (e) { /* links are cosmetic */ }
+  await refresh();  // refresh() schedules the next poll itself
+})();
+</script>
+</body>
+</html>

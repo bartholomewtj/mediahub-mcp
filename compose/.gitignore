@@ -1,0 +1,7 @@
+secrets.env
+STATE.md
+export-*/
+*.tar.gz
+*.tgz
+backups/
+*.swp

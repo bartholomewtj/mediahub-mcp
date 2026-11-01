@@ -1,0 +1,52 @@
+name: Install problem
+description: An agent could not install, update or uninstall MediaHub, or got stuck on a step.
+labels: [install]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste `secrets.env`, `vpn.env`, tokens, API keys or passwords.** Check the output you paste and remove any secret first. If a secret ended up in a chat or a log, rotate it.
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 + Docker Desktop, Ubuntu 24.04, Alpine 3.20, ..."
+    validations:
+      required: true
+  - type: input
+    id: docker
+    attributes:
+      label: Docker and Compose versions
+      description: "`docker version` and `docker compose version`."
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent used
+      placeholder: "Claude Code, Codex, Pi, ..."
+    validations:
+      required: true
+  - type: input
+    id: playbook
+    attributes:
+      label: Playbook and step
+      placeholder: "INSTALL.md, Phase 5.2 (or UPDATE.md step 7)"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: MediaHub version or tag
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The failing command's output, with secrets removed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else

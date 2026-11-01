@@ -1,0 +1,17 @@
+# Claim the bundled Plex server for your Plex account. Added by mh.ps1 / mh.sh only while
+# PLEX_CLAIM is set in stack.env (MEDIAHUB_STACK=full), so installs without it keep an
+# unchanged plex service.
+#
+# 1. Sign in at https://plex.tv/claim and copy the code (claim-...). It works once and
+#    expires after 4 minutes.
+# 2. Put PLEX_CLAIM=<code> in stack.env and run `mh up -d` within those 4 minutes. Plex is
+#    recreated and claims itself at start-up (linuxserver/plex reads PLEX_CLAIM).
+# 3. `mh run --rm setup secrets` copies the server's token into secrets.env (PLEX_TOKEN), and
+#    `mh run --rm setup wire` adds the Movies and TV Shows libraries.
+# 4. Delete the PLEX_CLAIM line from stack.env. The next `mh up -d` recreates Plex once more
+#    without it (it stays claimed).
+
+services:
+  plex:
+    environment:
+      PLEX_CLAIM: "${PLEX_CLAIM:-}"

@@ -1,0 +1,110 @@
+# MediaHub on Docker (Linux, or Windows with Docker Desktop): the CORE.
+#
+# This file alone runs MediaHub against *arr/Plex/qBittorrent you already have
+# (their URLs go in secrets.env). The bundled apps live in stack.yml and the
+# VPN in vpn.yml; mh.ps1 / mh.sh add them according to MEDIAHUB_STACK and
+# MEDIAHUB_VPN in <MEDIAHUB_HOME>/stack.env.
+#
+# Run it through compose/mh.ps1 or compose/mh.sh, which pass
+# `--env-file <MEDIAHUB_HOME>/stack.env` and export MEDIAHUB_HOME
+# (default ~/.mediahub). See compose/stack.env.example for every setting.
+#
+# Every app shares ONE network namespace (the `net` container) so that
+# 127.0.0.1 / localhost works between services.
+#
+# Ports are published on 127.0.0.1 only (stack.yml adds Plex on the LAN).
+#
+# Media stays in MEDIA_ROOT (bind mount at /media).
+# App state lives in named volumes (fast ext4, SQLite-safe); see README § Backup.
+# Settings: <MEDIAHUB_HOME>/stack.env (not secret).
+# Secrets:  <MEDIAHUB_HOME>/secrets.env, outside the repo and the agent workspace.
+#
+# MEDIAHUB_PREFIX prefixes every container name and MEDIAHUB_PORT_BIND moves the
+# dashboard port, so a second copy (`-p other-name`) can run beside this one.
+# Leave both unset for a normal install.
+
+name: mediahub
+
+# Anchors do not cross files: stack.yml repeats these. Keep them identical.
+x-media: &media "${MEDIA_ROOT:?set MEDIA_ROOT in stack.env}:/media"
+x-tz: &tz "${TZ:-Etc/UTC}"
+x-common: &common
+  restart: unless-stopped
+  network_mode: "service:net"
+  depends_on:
+    net:
+      condition: service_started
+
+services:
+  # Holds the shared network namespace and publishes every port.
+  net:
+    image: alpine:3.20
+    container_name: ${MEDIAHUB_PREFIX:-}mediahub-net
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${MEDIAHUB_PORT_BIND:-127.0.0.1:8000}:8000"    # mediahub dashboard + /mcp
+
+  mediahub:
+    <<: *common
+    build:
+      context: ..
+      dockerfile: compose/dashboard/Dockerfile
+    image: mediahub-dashboard:local
+    container_name: ${MEDIAHUB_PREFIX:-}mediahub
+    # Same uid as the apps that own the media (PUID:PGID in stack.env), so undo_delete can move
+    # their files. The image's data, logs and /taste folders are writable for any uid.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    env_file:
+      - ${MEDIAHUB_HOME:?run compose through mh.ps1 or mh.sh}/stack.env
+      - ${MEDIAHUB_HOME}/secrets.env   # second, so secrets win on duplicate keys
+    environment:
+      MEDIAHUB_HOST: 0.0.0.0
+      MEDIAHUB_PORT: "8000"
+      MEDIAHUB_PINNED_STACK: "1"
+      TZ: *tz
+    volumes:
+      - mediahub-data:/opt/mediahub/data
+      # undo_delete moves files back out of /media/.recyclebin
+      - *media
+      - ./scripts:/scripts:ro
+      # Taste ledger. The folder, not the file: atomic rename into a
+      # single-file bind mount fails with EBUSY. TASTE_DIR (a host folder) or
+      # the mediahub-taste named volume.
+      - ${TASTE_DIR:-mediahub-taste}:/taste
+    mem_limit: 256m
+    cpus: 0.35
+
+  # First-run setup and config as code (app/setup.py). Profile "setup": never started by
+  # `up`, only by `mh run --rm setup secrets|wire|check|allowed-tools|bot-prompt|...`.
+  # Runs as PUID:PGID, the owner of the app config volumes, so it can read their keys and
+  # write qBittorrent.conf. On Linux, MEDIAHUB_HOME must be writable by that user.
+  # stack.yml adds the bundled apps' config volumes. In core mode (your own apps) there are none:
+  # `secrets` then only generates MCP_TOKEN, and `wire`/`check` talk to the URLs in secrets.env.
+  setup:
+    image: mediahub-dashboard:local    # built by the mediahub service; never pulled
+    pull_policy: never
+    container_name: ${MEDIAHUB_PREFIX:-}mediahub-setup
+    profiles: ["setup"]
+    network_mode: "service:net"
+    user: "${PUID:-1000}:${PGID:-1000}"
+    entrypoint: ["python", "-m", "app.setup"]
+    command: ["check"]
+    # Secrets are not passed as environment: app.config reads MEDIAHUB_SECRETS, the
+    # file `secrets` just wrote, on every run.
+    env_file:
+      - ${MEDIAHUB_HOME:?run compose through mh.ps1 or mh.sh}/stack.env
+    environment:
+      MEDIAHUB_SECRETS: /mh-home/secrets.env
+      TZ: *tz
+    volumes:
+      - ${MEDIAHUB_HOME}:/mh-home
+      - *media
+    depends_on:
+      net: { condition: service_started }
+
+volumes:
+  mediahub-data:
+  mediahub-taste:
