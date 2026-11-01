@@ -188,25 +188,33 @@ class Trust(unittest.TestCase):
         sent.assert_awaited_once()
         self.assertIn("9-1-1", sent.await_args.args[0][0].title)
 
-    def test_bounded_delete_cap(self):
+    def test_bounded_delete_has_no_daily_cap_while_remove_blocklist_keeps_cap(self):
         self._tmp_data()
-        plan = AsyncMock(return_value=("Delete Show X entirely (5 GB)", {"app": "sonarr", "id": 5}))
+        plan_del = AsyncMock(return_value=("Delete Show X entirely (5 GB)", {"app": "sonarr", "id": 5}))
+        plan_rm = AsyncMock(return_value=("Remove and blocklist Show X (1 item(s), 2 GB)",
+                                          {"app": "sonarr", "queue_ids": [1]}))
         m = {"history_download_ids": AsyncMock(return_value=set()), "delete_series": AsyncMock(),
+             "queue_remove_bulk": AsyncMock(),
              "queue": AsyncMock(return_value=[]), "qbit_torrents": AsyncMock(return_value=[]),
              "qbit_delete": AsyncMock(), "disk_free_gb": AsyncMock(return_value=100.0),
              "episode_files": AsyncMock(return_value=[]), "get_series": AsyncMock(return_value={})}
 
         async def run():
-            with patch.object(tools, "_plan", plan), patch.multiple(tools.stack, **m),                  patch.object(tools.notify, "send", AsyncMock(return_value=True)):
-                for _ in range(tools.BOUNDED_CAPS["delete"]):
-                    await tools.destructive("t:sonarr:5", "delete_title", "bounded")
-                with self.assertRaises(tools.ToolError):
-                    await tools.destructive("t:sonarr:5", "delete_title", "bounded")
-                # a human-approved delete is not capped
-                return await tools.destructive("t:sonarr:5", "delete_title", "approved"), await tools.deleted()
+            with patch.multiple(tools.stack, **m), \
+                 patch.object(tools.notify, "send", AsyncMock(return_value=True)):
+                with patch.object(tools, "_plan", plan_del):
+                    for _ in range(5):
+                        out = await tools.destructive("t:sonarr:5", "delete_title", "bounded")
+                    log = await tools.deleted()
+                with patch.object(tools, "_plan", plan_rm):
+                    for _ in range(tools.BOUNDED_CAPS["remove_blocklist"]):
+                        await tools.destructive("q:sonarr:abc", "remove_blocklist", "bounded")
+                    with self.assertRaises(tools.ToolError):
+                        await tools.destructive("q:sonarr:abc", "remove_blocklist", "bounded")
+                return out, log
         out, log = asyncio.run(run())
         self.assertEqual(out["status"], "done")
-        self.assertEqual(len(log["deletes"]), 4)
+        self.assertEqual(len(log["deletes"]), 5)
         self.assertTrue(all(d["undoable"] for d in log["deletes"]))
         self.assertIn("recyclebin", log["undo"])
 

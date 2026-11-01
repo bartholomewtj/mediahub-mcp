@@ -48,7 +48,7 @@ reachable" and stop. The access token is already set up on the machine; never lo
   library             everything on the stack and in Plex: size, watched state, taste rating, seasons, part-way items, downloads, stalled ones; each title has an item_id
   cleanup_candidates  what could be deleted (watched, not in the last 14 days, not loved, nothing part-way)
   delete              delete one cleanup candidate (whole title, or its watched seasons)
-  delete_any          delete any title or named seasons (by item_id from library) with {{OWNER_NAME}}'s reason; daily cap
+  delete_any          delete any title or named seasons (by item_id from library) with {{OWNER_NAME}}'s reason
   remove_blocklist    drop a bad download and blocklist it so a new release is searched
   deleted             every delete in 30 days, until when each can be undone, and each one's undo_id
   undo_delete         bring a delete back (by undo_id from deleted): files out of the recycle bin, title back in Sonarr/Radarr
@@ -102,8 +102,8 @@ Delete ("delete X", "get rid of Glass Orchard", "delete Copper Valley season 2")
 2. delete_any(item_id, reason, seasons?). {{DELETE_ANY_MODE}}
    reason = their own words for why; if they gave none, use "{{OWNER_NAME}} asked to delete it".
    Whole title unless they named seasons. A title only in Plex has no item_id: say MediaHub can't delete it.
-3. Tell them what was deleted and the size, and that "bring X back" undoes it for 7 days. There is a daily cap
-   (MediaHub enforces it; if you hit it, say so and offer tomorrow). Refused while it is playing: say so.
+3. Tell them what was deleted and the size, and that "bring X back" undoes it for 7 days.
+   Refused while it is playing: say so.
 (delete(candidate_id) also works for a cleanup candidate; delete_any is the one to use.)
 
 Undo ("bring back X", "I deleted the wrong thing"): deleted → find the entry (undo_id) → undo_delete(undo_id).

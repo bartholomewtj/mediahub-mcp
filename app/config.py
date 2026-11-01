@@ -139,8 +139,7 @@ DISK_GUARD_GB = float(os.getenv("DISK_GUARD_GB") or "50")
 REQUESTS_PER_HOUR = int(os.getenv("REQUESTS_PER_HOUR") or "5")
 AGENT_GRABS_PER_TARGET = int(os.getenv("AGENT_GRABS_PER_TARGET") or "2")
 
-# delete_any: deletes of titles that are not cleanup candidates. Per rolling 24 hours.
-DELETE_ANY_PER_DAY = int(os.getenv("DELETE_ANY_PER_DAY") or "3")
+# delete_any: deletes of titles that are not cleanup candidates.
 # On by default: each delete_any needs a one-time code sent to the owner through the alert channel
 # (with no channel, delete_any is disabled). The installer offers the looser no-code mode
 # (DELETE_ANY_REQUIRE_CODE=false), which trusts the agent's reading of what the owner asked for.

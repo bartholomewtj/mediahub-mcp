@@ -17,7 +17,7 @@ In scope:
   should not.
 - Fencing of untrusted text: release names, torrent names and *arr error text reaching an agent as
   instructions, a tool parameter, or an alert.
-- Destructive tools: `delete`, `remove_blocklist`, `delete_any`, `undo_delete`, their daily caps, the
+- Destructive tools: `delete`, `remove_blocklist`, `delete_any`, `undo_delete`, their guards, the
   confirmation code, and the bounded mode.
 - The install, update and uninstall playbooks and `compose/` scripts doing something unsafe by default.
 

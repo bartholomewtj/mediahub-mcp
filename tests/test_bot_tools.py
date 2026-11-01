@@ -91,7 +91,7 @@ class DeleteAny(Base):
         self.assertNotIn("code", str(send.await_args))
         self.assertEqual(self.log("deletions.json")[0]["reason"], "the owner said it is boring")
 
-    def test_no_code_mode_keeps_reason_cap_and_playing_guards(self):
+    def test_no_code_mode_keeps_reason_and_playing_guards_with_no_daily_cap(self):
         with patch.object(config, "DELETE_ANY_REQUIRE_CODE", False):
             with self.assertRaises(tools.ToolError):
                 self.go(self.stack(), lambda: tools.delete_any("t:sonarr:5", "no"))
@@ -99,12 +99,9 @@ class DeleteAny(Base):
                 self.go(self.stack(sessions=[{"grandparentTitle": "Copper Valley"}]),
                         lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring"))
             m = self.stack()
-            for _ in range(config.DELETE_ANY_PER_DAY):
+            for _ in range(5):
                 self.go(m, lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring"))
-            with self.assertRaises(tools.ToolError) as cm:
-                self.go(m, lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring"))
-            self.assertIn("Limit reached", str(cm.exception))
-            self.assertEqual(m["delete_series"].await_count, config.DELETE_ANY_PER_DAY)
+            self.assertEqual(m["delete_series"].await_count, 5)
 
     def test_needs_a_reason(self):
         for bad in ("", "no", "too short"):
@@ -119,7 +116,7 @@ class DeleteAny(Base):
         self.assertRegex(code, r"^\d{6}$")
         self.assertNotIn(code, json.dumps(out))            # the agent never sees it
         m["delete_series"].assert_not_called()
-        self.assertEqual(tools._phone_used(), 0)
+        self.assertEqual(tools._read_deletions(), [])
 
     def test_not_a_cleanup_candidate_is_fine_with_the_right_code(self):
         m = self.stack()
@@ -196,22 +193,16 @@ class DeleteAny(Base):
             self.go(m, lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring"), sent=False)
         self.assertEqual(tools._phone, {})
 
-    def test_three_a_day_then_refused_and_bounded_cap_untouched(self):
+    def test_multiple_deletes_with_code_have_no_daily_cap(self):
         m = self.stack()
-        for _ in range(config.DELETE_ANY_PER_DAY):
+        for _ in range(5):
+            tools._phone_issued.clear()
             code = self.get_code(m)
-            self.go(m, lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring", None, code))
-        with self.assertRaises(tools.ToolError) as cm:
-            self.go(m, lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring"))
-        self.assertIn("Limit reached", str(cm.exception))
-        self.assertEqual(tools._bounded_used("delete"), 0)     # separate budget from cleanup deletes
-        self.assertEqual(run(tools.deleted())["limits_today"]["delete_any_left"], 0)
-
-    def test_old_deletes_do_not_count(self):
-        old = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
-        (self.dir / "deletions.json").write_text(json.dumps(
-            [{"at": old, "kind": "delete", "mode": "delete_any", "title": "x"}] * 5), encoding="utf-8")
-        self.assertEqual(tools._phone_used(), 0)
+            out, _, _ = self.go(m, lambda: tools.delete_any("t:sonarr:5", "the owner said it is boring", None, code))
+            self.assertEqual(out["status"], "done")
+            self.assertNotIn("delete_any_left_today", out)
+        self.assertEqual(m["delete_series"].await_count, 5)
+        self.assertEqual(len(self.log("deletions.json")), 5)
 
     def test_playing_now_is_refused(self):
         m = self.stack(sessions=[{"grandparentTitle": "Copper Valley", "title": "Ep 2"}])
@@ -255,14 +246,14 @@ class DeleteAny(Base):
             with self.assertRaises(tools.ToolError):
                 self.go(self.stack(), lambda: tools.delete_any(bad, "the owner said it is boring"))
 
-    def test_failure_part_way_is_logged_and_counts(self):
+    def test_failure_part_way_is_logged(self):
         m = self.stack()
         code = self.get_code(m, item="t:radarr:17")
         m["delete_movie"].side_effect = RuntimeError("boom")
         with self.assertRaises(tools.ToolError) as cm:
             self.go(m, lambda: tools.delete_any("t:radarr:17", "the owner said it is boring", None, code))
         self.assertIn("part-way", str(cm.exception))
-        self.assertEqual(tools._phone_used(), 1)
+        self.assertEqual(len(self.log("deletions.json")), 1)
 
     def test_deleted_shows_every_kind_with_undo_steps(self):
         now = datetime.now(timezone.utc)
@@ -289,7 +280,7 @@ class DeleteAny(Base):
         self.assertTrue(mid["undoable"])
         self.assertFalse(oldest["undoable"])
         self.assertIn("window closed", oldest["undo_steps"][0])
-        self.assertEqual(out["limits_today"]["delete_any_left"], config.DELETE_ANY_PER_DAY - 1)
+        self.assertNotIn("limits_today", out)
 
 
 class UndoDelete(Base):

@@ -61,7 +61,7 @@ you say otherwise, your data).
 - **Stranger-written text is fenced.** Release names and error text are data, never instructions
   or parameters.
 - **Deletes are gated.** A confirm form in Claude Code; elsewhere a bounded mode (cleanup
-  candidates only, daily caps). Deleting anything else (`delete_any`) needs a one-time code sent to
+  candidates only for deletes). Deleting anything else (`delete_any`) needs a one-time code sent to
   your alert channel unless you opt out. Every delete can be undone for 7 days.
 - **Bounded actions.** Disk guard, requests per hour, grabs per title.
 - **VPN is optional.** Without it your internet provider can see the torrent traffic; the
@@ -87,7 +87,7 @@ you say otherwise, your data).
 - **Ids are server-issued.** Actions take ids the server handed out (like `t:radarr:17`), re-checked
   against live state on every call.
 - **Destructive actions are bounded.** Elicitation form in Claude Code; elsewhere cleanup
-  candidates only, with daily caps and a 7-day recycle bin you can undo from.
+  candidates only for deletes, 5 remove+blocklists a day, and a 7-day recycle bin you can undo from.
 - **Safe defaults.** Everything binds to `127.0.0.1`, secrets stay in files outside the repo, and
   guards (disk, request and grab limits, confirmation codes) are on unless you turn them off.
 
@@ -117,7 +117,7 @@ skills folder) tells it how. Examples:
 | `set_rating(tmdb_id, title, verdict, why?)` | Change a rating (`loved liked meh disliked skip not_mine`) of a title already in the ledger | only a title the owner names; every change logged in `data/rating_changes.json` |
 | `cleanup_candidates(free_gb?)` | What could go: watched, not in 14 days, not loved, nothing part-way | — |
 | `delete(candidate_id)` / `remove_blocklist(target_id)` | Destructive | Claude Code: the owner confirms in a form. Elsewhere: bounded (below) |
-| `delete_any(item_id, reason, seasons?)` | Delete any title or named seasons, candidate or not | a reason, 3 a day, not while playing, a one-time code by default (see below) |
+| `delete_any(item_id, reason, seasons?)` | Delete any title or named seasons, candidate or not | a reason, not while playing, a one-time code by default (see below) |
 | `deleted()` | Every delete in 30 days, each with its `undo_id`, whether it can still be undone, and the steps | — |
 | `undo_delete(undo_id)` | Put a delete back: files out of the recycle bin, title back in Sonarr/Radarr, rescan | within 7 days, once |
 
@@ -133,14 +133,13 @@ skills folder) tells it how. Examples:
   can't answer. Everywhere else — a chat bot running headless Claude Code, Codex,
   Pi — they run in **bounded mode**: deletes only for
   cleanup candidates (watched, 14 days, not loved, nothing part-way), at most
-  3 deletes and 5 remove+blocklists per 24 hours, deleted files kept 7 days in
+  5 remove+blocklists per 24 hours, deleted files kept 7 days in
   the recycle bin (`deleted()` explains undo), and an alert for each. A form
   the owner declines always stops it.
 - **`delete_any` (anything).** The way to delete a non-candidate (and any title).
-  `item_id` from `library()`, a `reason` of at least 3 words (logged), 3 a day on its
-  own budget (`DELETE_ANY_PER_DAY`), refused while the title is playing or if Plex
-  can't be read, same recycle bin and `undo_delete`. It has three states, shown by
-  `status()` as `alerts.delete_any`:
+  `item_id` from `library()`, a `reason` of at least 3 words (logged), refused while
+  the title is playing or if Plex can't be read, same recycle bin and `undo_delete`.
+  It has three states, shown by `status()` as `alerts.delete_any`:
   - `code` (the default, `DELETE_ANY_REQUIRE_CODE=true`): the first call sends the owner
     a six-digit code through the alert channel and returns `code_sent`; the second call
     includes the code (single-use, bound to the target, 10 minutes, 3 tries then a
@@ -150,7 +149,7 @@ skills folder) tells it how. Examples:
     choose no-code mode.
   - `no_code` (`DELETE_ANY_REQUIRE_CODE=false`, an explicit opt-in): one call, and works
     with no channel. The only guards against a wrong delete are the prompt rule "only a
-    title the owner named", the daily cap, and the 7-day undo.
+    title the owner named" and the 7-day undo.
 - **`undo_delete`.** Every delete records the files it removes. Undo moves them
   from `/media/.recyclebin` back to their old paths (never outside `/media`, never
   over an existing file), re-adds the title at its old folder if it was removed

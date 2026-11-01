@@ -225,11 +225,11 @@ To install MediaHub I need a few answers. Defaults are in [brackets]; reply "def
 7. Deleting titles that are not cleanup candidates (delete_any):
    a) with a one-time code sent to your alert channel [default; with no alert channel this
       kind of delete is switched off, ordinary cleanup still works]
-   b) no code: one step, but a wrong or tricked delete goes through, limited to 3 a day and
+   b) no code: one step, but a wrong or tricked delete goes through,
       undoable for 7 days.
 8. Settings (accept all, or name the ones to change):
    new titles at quality profile HD-720p | requests stop below 50 GB free | 5 requests per hour |
-   2 agent grabs per title | 3 delete_any per day | weekly cleanup suggestions SUN 10:00 |
+   2 agent grabs per title | weekly cleanup suggestions SUN 10:00 |
    weekly picks FRI 18:00 | never suggest deleting anything watched in the last 14 days |
    qBittorrent caps 2000 KiB/s down, 250 KiB/s up | seeding stops at ratio 2.0 or after 7 days
 9. Plex: claim it for your Plex account now (you get a code at https://plex.tv/claim, valid
@@ -259,7 +259,7 @@ Map the answers to settings (Phase 3 writes them):
 | 6 Telegram | `NOTIFIER=telegram` (secrets.env); user pastes `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 | 6 none | leave `NOTIFIER` empty |
 | 7 code / no code | `DELETE_ANY_REQUIRE_CODE=true` / `false` (stack.env) |
-| 8 settings | `DEFAULT_PROFILE`, `DISK_GUARD_GB`, `REQUESTS_PER_HOUR`, `AGENT_GRABS_PER_TARGET`, `DELETE_ANY_PER_DAY`, `WEEKLY_CLEANUP`, `WEEKLY_PICKS`, `CLEANUP_MIN_DAYS`, `QBIT_DL_LIMIT_KIB`, `QBIT_UP_LIMIT_KIB`, `QBIT_MAX_RATIO`, `QBIT_MAX_SEEDING_MINUTES` (stack.env) |
+| 8 settings | `DEFAULT_PROFILE`, `DISK_GUARD_GB`, `REQUESTS_PER_HOUR`, `AGENT_GRABS_PER_TARGET`, `WEEKLY_CLEANUP`, `WEEKLY_PICKS`, `CLEANUP_MIN_DAYS`, `QBIT_DL_LIMIT_KIB`, `QBIT_UP_LIMIT_KIB`, `QBIT_MAX_RATIO`, `QBIT_MAX_SEEDING_MINUTES` (stack.env) |
 | 9 Plex now | `PLEX_CLAIM` (stack.env), pasted by the user in Phase 5.1 |
 | 10 bot machine | this machine with an agent CLI installed: 7.3 renders the prompt. This machine without one, or another machine: flag it (see the rules below) |
 | 11 ids | `PUID`, `PGID` (stack.env); Windows keeps 1000 |

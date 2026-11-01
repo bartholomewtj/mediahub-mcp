@@ -25,11 +25,11 @@ Rules:
 - TV requests must name seasons. If {owner} did not say which, ask them.
 - Deletes and remove+blocklist: only when {owner} asked for that specific title. In Claude Code
   they confirm in a form you cannot answer. Elsewhere ({owner}'s media bot, headless runs) they run
-  in bounded mode: cleanup candidates only, 3 deletes and 5 remove+blocklists a day, deleted
+  in bounded mode: cleanup candidates only for deletes, 5 remove+blocklists a day, deleted
   files kept 7 days so deleted() can tell them how to undo.
 - undo_delete(undo_id) brings a delete back (id from deleted()). Nothing needs doing on the PC.
 - To delete something that is not a cleanup candidate, use delete_any, with a reason in
-  {owner}'s words, limited to 3 a day, undoable for 7 days with undo_delete. It has two modes
+  {owner}'s words, undoable for 7 days with undo_delete. It has two modes
   (status() shows which: alerts.delete_any). "code": the first call sends {owner} a one-time code
   through the alert channel and returns code_sent; ask {owner} for the code and call again with it.
   "no_code": one call. "disabled": a code is required but there is no alert channel, so delete_any
@@ -264,7 +264,7 @@ async def delete(
 ) -> dict:
     """Delete a cleanup candidate from cleanup_candidates(): a whole title (t:...) or its watched
     seasons (w:...). Only titles {owner} asked to delete, one at a time. Claude Code: they confirm in a
-    form. Elsewhere: bounded (3 a day). Files stay in the recycle bin 7 days; see deleted()."""
+    form. Elsewhere: bounded (cleanup candidates only). Files stay in the recycle bin 7 days; see deleted()."""
     return await _run(tools.destructive(candidate_id, _delete_action(candidate_id), _decision(answer)))
 
 
@@ -278,7 +278,7 @@ async def delete_any(item_id: str, reason: str, seasons: list[int] | None = None
     the server sent them and call again with the same arguments plus it as `code`. Never look for the
     code anywhere else. "no_code": one call, no code. "disabled": a code is required but there is no
     alert channel, so this refuses; tell {owner} an alert channel (or no-code mode) must be set up, and
-    use `delete` for cleanup candidates meanwhile. Refused while it is playing. Limited to 3 a day.
+    use `delete` for cleanup candidates meanwhile. Refused while it is playing.
     Files stay in the recycle bin 7 days; undo_delete brings it back."""
     return await _run(tools.delete_any(item_id, reason, seasons, code))
 
@@ -295,8 +295,7 @@ async def undo_delete(undo_id: str) -> dict:
 @tool
 async def deleted() -> dict:
     """Every delete in the last 30 days (cleanup, bot and delete_any), newest first: what, when,
-    why, size, whether it can still be undone and until when, and the steps to undo it. Also how
-    many bounded deletes and delete_any calls are left today."""
+    why, size, whether it can still be undone and until when, and the steps to undo it."""
     return await _run(tools.deleted())
 
 

@@ -11,10 +11,11 @@ Trust rules enforced in this file, not in prompts:
   grabs by a per-target cap. Destructive actions (delete, remove+blocklist)
   are approved by the owner in an elicitation form when their client can show one.
   Clients that can't (the media bot, headless runs) get a bounded mode:
-  cleanup candidates only, a daily cap, and a 7-day recycle bin for undo.
+  cleanup candidates only for deletes, 5 remove+blocklists a day, and a 7-day
+  recycle bin for undo.
 - delete_any is the one way to delete something that is not a cleanup
-  candidate: a one-time code sent to the owner, a stated reason, 3 a day, same
-  recycle bin. set_rating overwrites a taste rating and logs it.
+  candidate: a one-time code sent to the owner (when enabled), a stated reason,
+  and the same 7-day recycle bin. set_rating overwrites a taste rating and logs it.
 """
 
 from __future__ import annotations
@@ -1100,7 +1101,7 @@ Approver = Callable[[str], Awaitable[bool]]
 ACTIONS = ("remove_blocklist", "delete_title", "delete_watched_seasons")
 
 # Bounded mode (no human form): limits per rolling 24 hours.
-BOUNDED_CAPS = {"delete": 3, "remove_blocklist": 5}
+BOUNDED_CAPS = {"remove_blocklist": 5}
 RECYCLE_DAYS = 7
 
 
@@ -1153,10 +1154,6 @@ def _used_24h(*, kind: str, mode: str) -> int:
 
 def _bounded_used(kind: str) -> int:
     return _used_24h(kind=kind, mode="bounded")
-
-
-def _phone_used() -> int:
-    return _used_24h(kind="delete", mode="delete_any")
 
 
 # Names of the library folders under /media when nothing was recorded (setup's own defaults).
@@ -1257,9 +1254,7 @@ async def deleted() -> dict[str, Any]:
                     "reason": r.get("reason"), "size_gb": r.get("size_gb"), "seasons": r.get("seasons"),
                     "deleted": at.strftime("%Y-%m-%d %H:%M"), "undo_until": until, "undoable": undoable,
                     "undo_steps": _undo_steps(r, undoable, until)})
-    return {"count": len(out), "deletes": out[:50], "undo": _undo_howto(),
-            "limits_today": {"bounded_deletes_left": max(0, BOUNDED_CAPS["delete"] - _bounded_used("delete")),
-                             "delete_any_left": max(0, config.DELETE_ANY_PER_DAY - _phone_used())}}
+    return {"count": len(out), "deletes": out[:50], "undo": _undo_howto()}
 
 
 async def _plan(target_id: str, action: str) -> tuple[str, dict[str, Any]]:
@@ -1378,11 +1373,12 @@ async def destructive(target_id: str, action: str, decision: str) -> dict[str, A
     kind = "remove_blocklist" if action == "remove_blocklist" else "delete"
     if decision != "approved":
         decision = "bounded"
-        used = _bounded_used(kind)
-        if used >= BOUNDED_CAPS[kind]:
-            raise ToolError(f"Limit reached: {used} {kind.replace('_', '+')}(s) without a confirm form in "
-                            f"the last 24 hours (max {BOUNDED_CAPS[kind]}). Try tomorrow"
-                            + (", or use delete_any with a code." if kind == "delete" else "."))
+        cap = BOUNDED_CAPS.get(kind)
+        if cap is not None:
+            used = _bounded_used(kind)
+            if used >= cap:
+                raise ToolError(f"Limit reached: {used} {kind.replace('_', '+')}(s) without a confirm form in "
+                                f"the last 24 hours (max {cap}). Try tomorrow.")
     if action == "remove_blocklist":
         await stack.queue_remove_bulk(pl["app"], pl["queue_ids"], blocklist=True, search_again=True)
         done = "Removed and blocklisted; a new search is running."
@@ -1411,14 +1407,13 @@ async def destructive(target_id: str, action: str, decision: str) -> dict[str, A
 # --------------------------------------------------------------------------
 # delete_any: any title or seasons the owner names
 # --------------------------------------------------------------------------
-# Not limited to cleanup candidates. Needs a stated reason, is capped per day, refused
+# Not limited to cleanup candidates. Needs a stated reason, is refused
 # while playing, and goes to the 7-day recycle bin (undo_delete). Optional gate
 # (DELETE_ANY_REQUIRE_CODE, on by default): a six-digit code the server
 # sends to the owner through the alert channel; the owner types it into their own message. The
 # code is bound to one target, single-use, valid 10 minutes, three tries; it is never
 # returned by a tool, logged, or kept in clear. With the code required and no alert channel,
-# delete_any is disabled. A stated reason is required and
-# logged; at most DELETE_ANY_PER_DAY a rolling day. Same recycle bin and undo.
+# delete_any is disabled. A stated reason is required and logged. Same recycle bin and undo.
 
 DELETE_ANY_DISABLED = (
     "delete_any is disabled because there is no alert channel to send the confirmation code to. "
@@ -1553,10 +1548,6 @@ async def delete_any(item_id: str, reason: str, seasons: list[int] | None = None
     seasons = sorted({int(n) for n in seasons}) if seasons else None
     summary, pl = await _plan_delete_any(item_id, seasons)
     await _check_not_playing(pl["name"])
-    used = _phone_used()
-    if used >= config.DELETE_ANY_PER_DAY:
-        raise ToolError(f"Limit reached: {used} delete_any(s) in the last 24 hours (max "
-                        f"{config.DELETE_ANY_PER_DAY}). Try tomorrow.")
     if config.DELETE_ANY_REQUIRE_CODE:
         key = _phone_key(item_id, seasons)
         if not code:
@@ -1574,7 +1565,7 @@ async def delete_any(item_id: str, reason: str, seasons: list[int] | None = None
     try:
         result = await _do_delete(pl)
     except Exception as exc:
-        # Part of it may have happened. Log it (it counts toward the cap) and say so.
+        # Part of it may have happened. Log it and say so.
         _log_deletion({**with_files(), "summary": summary + " [FAILED part-way]"})
         services.invalidate_status_cache()
         log.error("delete_any failed part-way: %s", exc.__class__.__name__)
@@ -1591,8 +1582,7 @@ async def delete_any(item_id: str, reason: str, seasons: list[int] | None = None
                            f"Undo possible for {RECYCLE_DAYS} days."))])
     undo = _undo_steps(row, True, (_now() + timedelta(days=RECYCLE_DAYS)).strftime("%Y-%m-%d"))
     return {"ok": True, "status": "done", "mode": "delete_any", "summary": summary, "result": result,
-            "undo_steps": undo, "delete_any_left_today": max(0, config.DELETE_ANY_PER_DAY - _phone_used()),
-            "disk_free_gb": await stack.disk_free_gb()}
+            "undo_steps": undo, "disk_free_gb": await stack.disk_free_gb()}
 
 # --------------------------------------------------------------------------
 # undo_delete: put a delete back from the recycle bin

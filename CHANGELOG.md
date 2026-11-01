@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 — 2026-11-01
+
+- Removed the daily deletion cap on `delete_any` (`DELETE_ANY_PER_DAY`) and bounded `delete`.
+  All other guards remain: cleanup-candidate check on `delete`, stated reason and not-playing check
+  (plus optional confirmation code via `DELETE_ANY_REQUIRE_CODE`) on `delete_any`, 5/day cap on
+  bounded `remove_blocklist`, and the 7-day recycle bin (`undo_delete`).
+
 ## 0.1.1 — 2026-11-01
 
 First public release.

@@ -27,12 +27,12 @@ run docker. If the MCP server is not connected, say so and stop.
 - **Destructive only when the user named it.** `delete` and `remove_blocklist`:
   in interactive Claude Code they tick a Confirm form you can't answer;
   declined means nothing changed. Elsewhere they run in bounded mode (cleanup
-  candidates only, 3 deletes / 5 remove+blocklists a day, files kept 7 days).
+  candidates only for deletes, 5 remove+blocklists a day, files kept 7 days).
   `deleted()` lists every delete (30 days) with whether it can still be undone
   and the steps to undo it.
 - **`delete_any` is how you delete anything** (candidate or not), and only a
   title or seasons the user named in their own message. A reason in
-  their words ("the user asked to delete it" if they gave none). 3 a day, refused
+  their words ("the user asked to delete it" if they gave none). Refused
   while playing, undoable 7 days with `undo_delete`. `status()` shows the mode
   (`alerts.delete_any`). `code` (the default): the first call returns `code_sent`; ask
   the user for the code the server sent them and call again with it; never look for the

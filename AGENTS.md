@@ -43,7 +43,7 @@ update (`UPDATE.md`) or a repair.
    backup taken before the upgrade (`UPDATE.md`, Rollback), and only after the user agrees.
 6. **Destructive defaults stay safe.** `DELETE_ANY_REQUIRE_CODE=true` unless the user explicitly
    chooses no-code mode after you explained the risk in one sentence: a wrong or tricked delete
-   goes through with nothing but the agent's say-so, limited to the daily cap and undoable for
+   goes through with nothing but the agent's say-so, undoable for
    7 days. Never widen bounded mode, raise caps or turn guards off on your own.
 7. **Never delete media files or Docker volumes** unless the user asked for exactly that in their
    own words, and `UNINSTALL.md` says how to confirm it.
