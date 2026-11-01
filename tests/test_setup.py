@@ -439,6 +439,7 @@ def stack_config(monkeypatch, tmp_path):
                         "QBIT_MAX_RATIO": 2.0, "QBIT_MAX_SEEDING_MINUTES": 10080}.items():
         monkeypatch.setattr(config, name, value)
     monkeypatch.delenv("MEDIAHUB_VPN", raising=False)
+    monkeypatch.setattr(setup, "_media_mounted", lambda: False)
     made = []
     monkeypatch.setattr(setup, "_mkdir", made.append)
     return made

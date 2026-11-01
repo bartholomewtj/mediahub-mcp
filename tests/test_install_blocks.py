@@ -417,7 +417,7 @@ def _stub(folder: Path, **scripts: str) -> Path:
 def _preflight(shell: list[str], tmp: Path, *args: str, stub: Path | None = None, **env) -> subprocess.CompletedProcess:
     stub = stub or _stub(tmp / "stub", docker=STUB_DOCKER_SH)
     full = {**os.environ, "HOME": str(tmp / "home"), "MEDIAHUB_HOME": str(tmp / "mh"),
-            "PATH": str(stub) + os.pathsep + os.environ.get("PATH", "")}
+            "PATH": os.pathsep.join([str(stub), str(Path(shell[0]).parent), os.environ.get("PATH", "")])}
     for k in ("TZ", "STUB_COMPOSE", "STUB_INFO", "STUB_PS", "STUB_VOLUMES"):
         full.pop(k, None)
     full.update(env)
@@ -487,6 +487,12 @@ class TestPreflightSh:
         s1 = _stub(tmp_path / "a", docker=STUB_DOCKER_SH, ss=ss)
         sec = _sections(_preflight(shell, tmp_path, stub=s1).stdout)["ports"]
         assert "checked with: ss" in sec and "in use: 8989 32400 " in sec
+        s4 = _stub(tmp_path / "d", docker=STUB_DOCKER_SH, ss=quiet)
+        assert "ports free" in _sections(_preflight(shell, tmp_path, stub=s4).stdout)["ports"]
+        if "busybox" in Path(shell[0]).name.lower():
+            # Debian/Ubuntu builds busybox with standalone applets, so `busybox sh` runs its
+            # compiled-in `netstat` instead of a stub on PATH.
+            return
         s2 = _stub(tmp_path / "b", docker=STUB_DOCKER_SH, ss=FAIL_SH, netstat=netstat)
         sec = _sections(_preflight(shell, tmp_path, stub=s2).stdout)["ports"]
         assert "checked with: netstat" in sec and "in use: 7878" in sec
@@ -496,8 +502,6 @@ class TestPreflightSh:
             assert "checked with: /proc/net/tcp" in sec
         else:
             assert "could not check ports" in sec
-        s4 = _stub(tmp_path / "d", docker=STUB_DOCKER_SH, ss=quiet)
-        assert "ports free" in _sections(_preflight(shell, tmp_path, stub=s4).stdout)["ports"]
 
     def test_existing_stack_and_mediahub_sections(self, shell, tmp_path):
         ps = "sonarr\tlscr.io/linuxserver/sonarr:4\tUp 2 hours\t8989/tcp\nmyweb\tnginx:1\tUp\t80/tcp"
